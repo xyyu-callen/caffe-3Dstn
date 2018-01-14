@@ -1,0 +1,26 @@
+train:
+  p3d + p3d
+  input:
+    batch_size: 10  length: 10
+  solver:
+    test_iter: 240
+    test_interval: 2000
+    lr: 1e-05
+
+
+train_01:
+  p3d-a + p3d-a
+  input: 
+    bs: 10  l: 10
+  solver:
+    test_iter: 100
+    lr: 1e-06
+
+
+train_02:(each video have )
+  p3d-a + p3d-a
+  input:
+    bt: 10  l: 10
+  solver:
+    test_iter: 240
+    lr: 1e-06

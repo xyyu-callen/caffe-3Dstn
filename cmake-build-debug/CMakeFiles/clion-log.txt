@@ -1,0 +1,74 @@
+/data2/xyyu/programe/clion-2017.2.2/bin/cmake/bin/cmake -DCMAKE_BUILD_TYPE=Debug -G "CodeBlocks - Unix Makefiles" /data2/xyyu/caffe
+-- Boost version: 1.54.0
+-- Found the following Boost libraries:
+--   system
+--   thread
+--   filesystem
+--   chrono
+--   date_time
+--   atomic
+-- Found gflags  (include: /usr/include, library: /usr/lib/x86_64-linux-gnu/libgflags.so)
+-- Found glog    (include: /usr/include, library: /usr/lib/x86_64-linux-gnu/libglog.so)
+-- Found PROTOBUF Compiler: /usr/bin/protoc
+-- HDF5: Using hdf5 compiler wrapper to determine C configuration
+-- HDF5: Using hdf5 compiler wrapper to determine CXX configuration
+-- Found lmdb    (include: /usr/include, library: /usr/lib/x86_64-linux-gnu/liblmdb.so)
+-- Found LevelDB (include: /usr/include, library: /usr/lib/x86_64-linux-gnu/libleveldb.so)
+-- Found Snappy  (include: /usr/include, library: /usr/lib/libsnappy.so)
+-- -- CUDA is disabled. Building without it...
+-- OpenCV found (/usr/local/share/OpenCV)
+-- Found Atlas (include: /usr/include library: /usr/lib/libatlas.so lapack: /usr/lib/liblapack.so
+-- NumPy ver. 1.13.1 found (include: /usr/local/lib/python2.7/dist-packages/numpy-1.13.1-py2.7-linux-x86_64.egg/numpy/core/include)
+-- Boost version: 1.54.0
+-- Found the following Boost libraries:
+--   python
+-- Detected Doxygen OUTPUT_DIRECTORY: ./doxygen/
+-- 
+-- ******************* Caffe Configuration Summary *******************
+-- General:
+--   Version           :   1.0.0
+--   Git               :   1.0-29-geffcdb0-dirty
+--   System            :   Linux
+--   C++ compiler      :   /usr/bin/c++
+--   Release CXX flags :   -O3 -DNDEBUG -fPIC -Wall -Wno-sign-compare -Wno-uninitialized
+--   Debug CXX flags   :   -g -fPIC -Wall -Wno-sign-compare -Wno-uninitialized
+--   Build type        :   Debug
+-- 
+--   BUILD_SHARED_LIBS :   ON
+--   BUILD_python      :   ON
+--   BUILD_matlab      :   OFF
+--   BUILD_docs        :   ON
+--   CPU_ONLY          :   ON
+--   USE_OPENCV        :   ON
+--   USE_LEVELDB       :   ON
+--   USE_LMDB          :   ON
+--   USE_NCCL          :   OFF
+--   ALLOW_LMDB_NOLOCK :   OFF
+-- 
+-- Dependencies:
+--   BLAS              :   Yes (Atlas)
+--   Boost             :   Yes (ver. 1.54)
+--   glog              :   Yes
+--   gflags            :   Yes
+--   protobuf          :   Yes (ver. 2.5.0)
+--   lmdb              :   Yes (ver. 0.9.10)
+--   LevelDB           :   Yes (ver. 1.15)
+--   Snappy            :   Yes (ver. 1.1.0)
+--   OpenCV            :   Yes (ver. 2.4.13.2)
+--   CUDA              :   No
+-- 
+-- Python:
+--   Interpreter       :   /usr/bin/python2.7 (ver. 2.7.6)
+--   Libraries         :   /usr/lib/x86_64-linux-gnu/libpython2.7.so (ver 2.7.6)
+--   NumPy             :   /usr/local/lib/python2.7/dist-packages/numpy-1.13.1-py2.7-linux-x86_64.egg/numpy/core/include (ver 1.13.1)
+-- 
+-- Documentaion:
+--   Doxygen           :   /usr/bin/doxygen (1.8.6)
+--   config_file       :   /data2/xyyu/caffe/.Doxyfile
+-- 
+-- Install:
+--   Install path      :   /data2/xyyu/caffe/cmake-build-debug/install
+-- 
+-- Configuring done
+-- Generating done
+-- Build files have been written to: /data2/xyyu/caffe/cmake-build-debug
