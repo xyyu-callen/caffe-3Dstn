@@ -108,6 +108,48 @@ __global__ void TridimAvePoolForward(const int nthreads, const Dtype* bottom_dat
   }
 }
 
+template <typename Dtype>
+__global__ void TridimSumPoolForward(const int nthreads, const Dtype* bottom_data,
+    const int num, const int channels, const int length, const int height,
+    const int width, const int pooled_length, const int pooled_height, const int pooled_width,
+    const int kernel_size, const int kernel_d, const int stride, const int stride_d, const int pad,
+    const int pad_d_, Dtype* top_data) {
+  CUDA_KERNEL_LOOP(index, nthreads) {
+    int pw = index % pooled_width;
+    int ph = (index / pooled_width) % pooled_height;
+    int pl = (index / pooled_width / pooled_height) % pooled_length;
+    int c = (index / pooled_width / pooled_height / pooled_length) % channels;
+    int n = index / pooled_width / pooled_height / pooled_length / channels;
+    int hstart = ph * stride - pad;
+    int wstart = pw * stride - pad;
+    int lstart = pl * stride_d - pad_d_;
+    int hend = min(hstart + kernel_size, height + pad);
+    int wend = min(wstart + kernel_size, width + pad);
+    int lend = min(lstart + kernel_d, length + pad_d_);
+    int pool_size = (hend - hstart) * (wend - wstart) * (lend - lstart);
+    hstart = max(hstart, 0);
+    wstart = max(wstart, 0);
+    lstart = max(lstart, 0);
+    hend = min(hend, height);
+    wend = min(wend, width);
+    lend = min(lend, length);
+    Dtype aveval = 0;
+    const Dtype* const bottom_slice =
+      bottom_data + (n * channels + c) * length * height * width;
+    for (int l = lstart; l < lend; ++l) {
+      for (int h = hstart; h < hend; ++h) {
+        for (int w = wstart; w < wend; ++w) {
+          aveval += bottom_slice[(l * height + h) * width + w];
+        }
+      }
+    }
+    // top_data[index] = aveval / pool_size;
+    top_data[index] = aveval;
+
+  }
+}
+
+
 
 template <typename Dtype>
 void TridimPoolingLayer<Dtype>::Forward_gpu(const vector<Blob<Dtype>*>& bottom,
@@ -134,6 +176,13 @@ void TridimPoolingLayer<Dtype>::Forward_gpu(const vector<Blob<Dtype>*>& bottom,
   case TridimPoolingParameter_PoolMethod_AVE:
     // NOLINT_NEXT_LINE(whitespace/operators)
     TridimAvePoolForward<Dtype><<<CAFFE_GET_BLOCKS(count), CAFFE_CUDA_NUM_THREADS>>>(
+        count, bottom_data, bottom[0]->shape(0), channels_, length_,
+        height_, width_, pooled_length_, pooled_height_, pooled_width_, kernel_size_, kernel_d_,
+        stride_, stride_d_, pad_, pad_d_, top_data);
+    break;
+  case TridimPoolingParameter_PoolMethod_SUM:
+    // NOLINT_NEXT_LINE(whitespace/operators)
+    TridimSumPoolForward<Dtype><<<CAFFE_GET_BLOCKS(count), CAFFE_CUDA_NUM_THREADS>>>(
         count, bottom_data, bottom[0]->shape(0), channels_, length_,
         height_, width_, pooled_length_, pooled_height_, pooled_width_, kernel_size_, kernel_d_,
         stride_, stride_d_, pad_, pad_d_, top_data);
@@ -247,6 +296,49 @@ __global__ void TridimAvePoolBackward(const int nthreads, const Dtype* top_diff,
 }
 
 template <typename Dtype>
+__global__ void TridimSumPoolBackward(const int nthreads, const Dtype* top_diff,
+    const int num, const int channels, const int length, const int height,
+    const int width, const int pooled_length, const int pooled_height, const int pooled_width,
+    const int kernel_size, const int kernel_d, const int stride, const int stride_d, const int pad,
+    const int pad_d, Dtype* bottom_diff) {
+  CUDA_KERNEL_LOOP(index, nthreads) {
+    // find out the local index
+    // find out the local offset
+    int w = index % width + pad;
+    int h = (index / width) % height + pad;
+    int l = (index / width / height) % length;
+    int c = (index / width / height / length) % channels;
+    int n = index / width / height / length / channels;
+    int phstart = (h < kernel_size) ? 0 : (h - kernel_size) / stride + 1;
+    int phend = min(h / stride + 1, pooled_height);
+    int pwstart = (w < kernel_size) ? 0 : (w - kernel_size) / stride + 1;
+    int pwend = min(w / stride + 1, pooled_width);
+    int plstart = (l < kernel_d) ? 0 : (l - kernel_d) / stride_d + 1;
+    int plend = min(l / stride_d + 1, pooled_length);
+    
+    Dtype gradient = 0;
+    top_diff += (n * channels + c) * pooled_length * pooled_height * pooled_width;
+    for (int pl = plstart; pl < plend; ++pl) {
+      for (int ph = phstart; ph < phend; ++ph) {
+        for (int pw = pwstart; pw < pwend; ++pw) {
+          // figure out the pooling size
+          int hstart = ph * stride - pad;
+          int wstart = pw * stride - pad;
+          int lstart = pl * stride_d - pad_d;
+          int hend = min(hstart + kernel_size, height + pad);
+          int wend = min(wstart + kernel_size, width + pad);
+          int lend = min(lstart + kernel_d, length + pad_d);
+          int pool_size = (hend - hstart) * (wend - wstart) * (lend - lstart);
+          // gradient += top_diff[(pl * pooled_height + ph) * pooled_width + pw] / pool_size;
+          gradient += top_diff[(pl * pooled_height + ph) * pooled_width + pw];
+        }
+      }
+    }
+    bottom_diff[index] = gradient;
+  }
+}
+
+template <typename Dtype>
 void TridimPoolingLayer<Dtype>::Backward_gpu(const vector<Blob<Dtype>*>& top,
       const vector<bool>& propagate_down, const vector<Blob<Dtype>*>& bottom) {
   if (!propagate_down[0]) {
@@ -276,6 +368,13 @@ void TridimPoolingLayer<Dtype>::Backward_gpu(const vector<Blob<Dtype>*>& top,
   case TridimPoolingParameter_PoolMethod_AVE:
     // NOLINT_NEXT_LINE(whitespace/operators)
     TridimAvePoolBackward<Dtype><<<CAFFE_GET_BLOCKS(count), CAFFE_CUDA_NUM_THREADS>>>(
+        count, top_diff, top[0]->shape(0), channels_, length_,
+        height_, width_, pooled_length_, pooled_height_, pooled_width_, kernel_size_, kernel_d_, 
+        stride_, stride_d_, pad_, pad_d_, bottom_diff);
+    break;
+  case TridimPoolingParameter_PoolMethod_SUM:
+    // NOLINT_NEXT_LINE(whitespace/operators)
+    TridimSumPoolBackward<Dtype><<<CAFFE_GET_BLOCKS(count), CAFFE_CUDA_NUM_THREADS>>>(
         count, top_diff, top[0]->shape(0), channels_, length_,
         height_, width_, pooled_length_, pooled_height_, pooled_width_, kernel_size_, kernel_d_, 
         stride_, stride_d_, pad_, pad_d_, bottom_diff);

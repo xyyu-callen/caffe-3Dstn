@@ -52,9 +52,11 @@ void TridimPoolingLayer<Dtype>::LayerSetUp(const vector<Blob<Dtype>*>& bottom,
   pad_d_ = this->layer_param_.tridim_pooling_param().pad();
 
   if (pad_ != 0) {
-    CHECK_EQ(this->layer_param_.tridim_pooling_param().pool(),
-             TridimPoolingParameter_PoolMethod_AVE)
-        << "Padding implemented only for average pooling.";
+    CHECK(this->layer_param_.tridim_pooling_param().pool()
+    	== TridimPoolingParameter_PoolMethod_AVE
+    	|| this->layer_param_.pooling3d_param().pool()
+    	== Pooling3DParameter_PoolMethod_SUM)
+        << "Padding implemented only for average pooling and sum pooling.";
   }
 
   channels_ = bottom[0]->shape(1);
@@ -216,6 +218,48 @@ void TridimPoolingLayer<Dtype>::Forward_cpu(const vector<Blob<Dtype>*>& bottom,
 	      }
 	    }
 	    break;
+	  case TridimPoolingParameter_PoolMethod_SUM:
+	    for (int i = 0; i < top_count; ++i) {
+	      top_data[i] = 0;
+	    }
+	    // The main loop
+	    for (int n = 0; n < bottom[0]->shape(0); ++n) {
+	      for (int c = 0; c < channels_; ++c) {
+	    	for (int pl = 0; pl < pooled_length_; ++pl) {
+	          for (int ph = 0; ph < pooled_height_; ++ph) {
+	            for (int pw = 0; pw < pooled_width_; ++pw) {
+	              int hstart = ph * stride_ - pad_;
+	              int wstart = pw * stride_ - pad_;
+	              int lstart = pl * stride_d_ - pad_d_;
+	              int hend = min(hstart + kernel_size_, height_ + pad_);
+	              int wend = min(wstart + kernel_size_, width_ + pad_);
+	              int lend = min(lstart + kernel_d_, length_ + pad_d_);
+	              int pool_size = (hend - hstart) * (wend - wstart) * (lend - lstart);
+	              hstart = max(hstart, 0);
+	              wstart = max(wstart, 0);
+	              lstart = max(lstart, 0);
+
+	              hend = min(hend, height_);
+	              wend = min(wend, width_);
+	              lend = min(lend, length_);
+	              for (int l = lstart; l < lend; ++l) {
+	                for (int h = hstart; h < hend; ++h) {
+	                  for (int w = wstart; w < wend; ++w) {
+	                    top_data[(pl * pooled_height_ + ph) * pooled_width_ + pw] +=
+	                        bottom_data[(l * height_ + h) * width_ + w];
+	                  }
+	                }
+	              }
+	              // top_data[(pl * pooled_height_ + ph) * pooled_width_ + pw] /= pool_size;
+	            }
+	          }
+	    	}
+	        // compute offset
+	        bottom_data += bottom[0]->offset(offset_indices);
+	        top_data += top[0]->offset(offset_indices);
+	      }
+	    }
+	    break;
 	  case TridimPoolingParameter_PoolMethod_STOCHASTIC:
 	    NOT_IMPLEMENTED;
 	    break;
@@ -249,6 +293,7 @@ void TridimPoolingLayer<Dtype>::Backward_cpu(const vector<Blob<Dtype>*>& top,
 	  const int* mask = NULL;
 	  const Dtype* top_mask = NULL;
 	  switch (this->layer_param_.tridim_pooling_param().pool()) {
+
 	  case TridimPoolingParameter_PoolMethod_MAX:
 	    // The main loop
 	    for (int n = 0; n < top[0]->shape(0); ++n) {
@@ -310,6 +355,41 @@ void TridimPoolingLayer<Dtype>::Backward_cpu(const vector<Blob<Dtype>*>& top,
 	      }
 	    }
 	    break;
+	  case TridimPoolingParameter_PoolMethod_SUM:
+	    for (int n = 0; n < top[0]->shape(0); ++n) {
+	      for (int c = 0; c < channels_; ++c) {
+	    	for (int pl = 0; pl < pooled_length_; ++pl) {
+	          for (int ph = 0; ph < pooled_height_; ++ph) {
+	            for (int pw = 0; pw < pooled_width_; ++pw) {
+	              int hstart = ph * stride_ - pad_;
+	              int wstart = pw * stride_ - pad_;
+	              int lstart = pl * stride_d_ - pad_d_;
+	              int hend = min(hstart + kernel_size_, height_ + pad_);
+	              int wend = min(wstart + kernel_size_, width_ + pad_);
+	              int lend = min(lstart + kernel_d_, length_ + pad_d_);
+	              int pool_size = (hend - hstart) * (wend - wstart) * (lend - lstart);
+	              hstart = max(hstart, 0);
+	              wstart = max(wstart, 0);
+	              lstart = max(lstart, 0);
+	              hend = min(hend, height_);
+	              wend = min(wend, width_);
+	              lend = min(lend, length_);
+	              for (int l = lstart; l < lend; ++l) {
+	                for (int h = hstart; h < hend; ++h) {
+	                  for (int w = wstart; w < wend; ++w) {
+	                    // bottom_diff[(l * height_ + h) * width_ + w] += top_diff[(pl * pooled_height_ + ph) * pooled_width_ + pw] / pool_size;
+	                    bottom_diff[(l * height_ + h) * width_ + w] += top_diff[(pl * pooled_height_ + ph) * pooled_width_ + pw];
+	                  }
+	                }
+	              }
+	            }
+	          }
+	    	}
+	        // offset
+	        bottom_diff += bottom[0]->offset(offset_indices);
+	        top_diff += top[0]->offset(offset_indices);
+	      }
+	    }
 	  case TridimPoolingParameter_PoolMethod_STOCHASTIC:
 	    NOT_IMPLEMENTED;
 	    break;

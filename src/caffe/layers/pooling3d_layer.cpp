@@ -86,11 +86,13 @@ void Pooling3DLayer<Dtype>::LayerSetUp(const vector<Blob<Dtype>*>& bottom,
 			CHECK(this->layer_param_.pooling3d_param().pool()
 				== Pooling3DParameter_PoolMethod_AVE
 				|| this->layer_param_.pooling3d_param().pool()
-				== Pooling3DParameter_PoolMethod_MAX)
-				<< "Padding implemented only for average and max pooling.";
+				== Pooling3DParameter_PoolMethod_MAX
+				|| this->layer_param_.pooling3d_param().pool()
+				== Pooling3DParameter_PoolMethod_SUM)
+				<< "Padding implemented only for average, max and sum pooling.";
 			CHECK_LT(pad_h_, kernel_h_);
 			CHECK_LT(pad_w_, kernel_w_);
-				CHECK_LT(pad_l_, kernel_l_);
+			CHECK_LT(pad_l_, kernel_l_);
 		}
 }
 
@@ -262,6 +264,47 @@ void Pooling3DLayer<Dtype>::Forward_cpu(const vector<Blob<Dtype>*>& bottom,
       }
     }
     break;
+  case Pooling3DParameter_PoolMethod_SUM:
+    for (int i = 0; i < top_count; ++i) {
+      top_data[i] = 0;
+    }
+    // The main loop
+    for (int n = 0; n < bottom[0]->shape(0); ++n) {
+      for (int c = 0; c < channels_; ++c) {
+		  for (int pl = 0; pl < pooled_length_; ++pl){
+			  for (int ph = 0; ph < pooled_height_; ++ph) {
+				  for (int pw = 0; pw < pooled_width_; ++pw) {
+					  int lstart = pl * stride_l_ - pad_l_;
+					  int hstart = ph * stride_h_ - pad_h_;
+					  int wstart = pw * stride_w_ - pad_w_;
+					  int lend = min(lstart + kernel_l_, length_ + pad_l_);
+					  int hend = min(hstart + kernel_h_, height_ + pad_h_);
+					  int wend = min(wstart + kernel_w_, width_ + pad_w_);
+					  int pool_size = (lend - lstart) * (hend - hstart) * (wend - wstart);
+					  lstart = max(lstart, 0);
+					  hstart = max(hstart, 0);
+					  wstart = max(wstart, 0);
+					  lend = min(lend, length_);
+					  hend = min(hend, height_);
+					  wend = min(wend, width_);
+					  for (int l = lstart; l < lend; ++l){
+						  for (int h = hstart; h < hend; ++h) {
+							  for (int w = wstart; w < wend; ++w) {
+								  top_data[pl * pooled_height_ * pooled_width_ + ph * pooled_width_ + pw] +=
+									  bottom_data[l * height_ * width_ + h * width_ + w];
+							  }
+						  }
+					  }
+					  // top_data[pl * pooled_height_ * pooled_width_ + ph * pooled_width_ + pw] /= pool_size;
+				  }
+			  }
+		  }
+        // compute offset
+        bottom_data += bottom[0]->offset(video_shape(0, 1));
+        top_data += top[0]->offset(video_shape(0, 1));
+      }
+    }
+    break;
   case Pooling3DParameter_PoolMethod_STOCHASTIC:
     NOT_IMPLEMENTED;
     break;
@@ -340,6 +383,45 @@ void Pooling3DLayer<Dtype>::Backward_cpu(const vector<Blob<Dtype>*>& top,
 							  for (int w = wstart; w < wend; ++w) {
 								  bottom_diff[l * height_ * width_ + h * width_ + w] +=
 									  top_diff[pl * pooled_height_ * pooled_width_ + ph * pooled_width_ + pw] / pool_size;
+							  }
+						  }
+					  }
+				  }
+			  }
+		  }
+        // offset
+        bottom_diff += bottom[0]->offset(video_shape(0, 1));
+        top_diff += top[0]->offset(video_shape(0, 1));
+      }
+    }
+    break;
+  case Pooling3DParameter_PoolMethod_SUM:
+    // The main loop
+    for (int n = 0; n < top[0]->shape(0); ++n) {
+      for (int c = 0; c < channels_; ++c) {
+		  for (int pl = 0; pl < pooled_length_; ++pl){
+			  for (int ph = 0; ph < pooled_height_; ++ph) {
+				  for (int pw = 0; pw < pooled_width_; ++pw) {
+					  int lstart = pl * stride_l_ - pad_l_;
+					  int hstart = ph * stride_h_ - pad_h_;
+					  int wstart = pw * stride_w_ - pad_w_;
+					  int lend = min(lstart + kernel_l_, length_ + pad_l_);
+					  int hend = min(hstart + kernel_h_, height_ + pad_h_);
+					  int wend = min(wstart + kernel_w_, width_ + pad_w_);
+					  int pool_size = (lend - lstart) * (hend - hstart) * (wend - wstart);
+					  lstart = max(lstart, 0);
+					  hstart = max(hstart, 0);
+					  wstart = max(wstart, 0);
+					  lend = min(lend, length_);
+					  hend = min(hend, height_);
+					  wend = min(wend, width_);
+					  for (int l = lstart; l < lend; ++l) {
+						  for (int h = hstart; h < hend; ++h) {
+							  for (int w = wstart; w < wend; ++w) {
+							  	  // bottom_diff[l * height_ * width_ + h * width_ + w] +=
+									  // top_diff[pl * pooled_height_ * pooled_width_ + ph * pooled_width_ + pw] / pool_size;
+								  bottom_diff[l * height_ * width_ + h * width_ + w] +=
+									  top_diff[pl * pooled_height_ * pooled_width_ + ph * pooled_width_ + pw];
 							  }
 						  }
 					  }
